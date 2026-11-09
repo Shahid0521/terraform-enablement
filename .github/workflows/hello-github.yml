@@ -1,0 +1,63 @@
+name: Hello GitHub Actions
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  Training:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+
+      - name: Configure Akamai credentials
+        env:
+          AKAMAI_HOST: ${{ vars.AKAMAI_HOST }}
+          AKAMAI_CLIENT_TOKEN: ${{ secrets.AKAMAI_CLIENT_TOKEN }}
+          AKAMAI_CLIENT_SECRET: ${{ secrets.AKAMAI_CLIENT_SECRET }}
+          AKAMAI_ACCESS_TOKEN: ${{ secrets.AKAMAI_ACCESS_TOKEN }}
+          AKAMAI_ACCOUNT_KEY: ${{ vars.AKAMAI_ACCOUNT_KEY }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          printf '[papi]\nhost = %s\nclient_token = %s\nclient_secret = %s\naccess_token = %s\naccount_key = %s\n' \
+            "$AKAMAI_HOST" \
+            "$AKAMAI_CLIENT_TOKEN" \
+            "$AKAMAI_CLIENT_SECRET" \
+            "$AKAMAI_ACCESS_TOKEN" \
+            "$AKAMAI_ACCOUNT_KEY" > ~/.edgerc
+
+      - name: Install Akamai CLI
+        run: |
+          set -euo pipefail
+
+          curl -fsSL \
+            https://github.com/akamai/cli/releases/download/v2.0.5/akamai-v2.0.5-linuxamd64 \
+            -o /tmp/akamai
+
+          chmod +x /tmp/akamai
+          sudo install -m 0755 /tmp/akamai /usr/local/bin/akamai
+
+          akamai --version
+
+      - name: Install Akamai Property Manager
+        run: akamai install property-manager
+
+      - name: Get contracts
+        run: akamai property-manager list-contracts
+
+      - name: Manual deployment step
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: echo "This runs only when manually triggered"
+
+      - name: Push-triggered step
+        if: ${{ github.event_name == 'push' }}
+        run: echo "This runs only when triggered by a push"
